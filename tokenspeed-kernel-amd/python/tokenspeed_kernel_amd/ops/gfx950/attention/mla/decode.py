@@ -52,6 +52,9 @@ from tokenspeed_kernel_amd.ops.gfx950.attention.mla.reduce_project_value import 
     gluon_mla_reduce_project_value_gfx950,
 )
 
+# Scale before the FP8 cast to retain small probabilities; cancel at normalization.
+_FP8_PROBABILITY_SCALE = gl.constexpr(256.0)
+
 # ===-----------------------------------------------------------------------===#
 # Kernel Config
 # ===-----------------------------------------------------------------------===#
@@ -951,6 +954,8 @@ class AttentionProgram:
         p = gl.exp2((qk - n_e_max[:, None]) * _INV_LN2)
         e_sum = e_sum * re_scale + gl.sum(p, 1)
         e_max = n_e_max
+        if cfg.IS_FP8_Q:
+            p *= _FP8_PROBABILITY_SCALE
         p = p.to(dtype)
         p = gl.convert_layout(p, cfg.p_layout)
         acc *= re_scale[:, None]
@@ -988,6 +993,8 @@ class AttentionProgram:
         )
         acc *= self.kv_scale
         rcp = 1.0 / e_sum
+        if cfg.IS_FP8_Q:
+            rcp /= _FP8_PROBABILITY_SCALE
         stored_value = (acc * rcp[:, None]).to(out_dtype)
         if cfg.NHEAD < cfg.BLOCK_H:
             gl.amd.cdna4.buffer_store(
@@ -1636,8 +1643,6 @@ _KV_REUSE_MIN_HISTORY = gl.constexpr(4096)
 _QUERY_ROW_TILE = gl.constexpr(64)
 _QUERY_HEAD_TILE = gl.constexpr(16)
 _QUERY_VALUE_TILE = gl.constexpr(128)
-# Scale before the FP8 cast to retain small probabilities; cancel at normalization.
-_QUERY_PROBABILITY_SCALE = gl.constexpr(256.0)
 
 
 @gluon.constexpr_function
@@ -2075,7 +2080,7 @@ def _decode_query_block(
             )[:, None] + gl.sum(partial_probability, 2)
         maximum = next_max
         probability = gl.convert_layout(
-            (probability * _QUERY_PROBABILITY_SCALE).to(Q.type.element_ty), p_layout
+            (probability * _FP8_PROBABILITY_SCALE).to(Q.type.element_ty), p_layout
         )
         acc0 = _compute_pv(
             buffers.index(current), probability, acc0, alpha, 0, value_layout, v_layout
@@ -2097,7 +2102,7 @@ def _decode_query_block(
     if M == 64:
         denominator = gl.convert_layout(gl.sum(denominator, 1), gl.SliceLayout(1, mfma))
     reciprocal = gl.where(
-        denominator > 0, 1.0 / (denominator * _QUERY_PROBABILITY_SCALE), 0.0
+        denominator > 0, 1.0 / (denominator * _FP8_PROBABILITY_SCALE), 0.0
     )
     partial_out = Partials + partial_row[:, None] * 512
     _store_partial(partial_out, acc0, reciprocal, valid, 0)

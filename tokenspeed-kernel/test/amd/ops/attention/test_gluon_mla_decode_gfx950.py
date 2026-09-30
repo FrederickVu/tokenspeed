@@ -304,6 +304,7 @@ def _make_query_block_inputs(cache_lengths, heads, page, width):
         (12, 64, 6, [0, 3, 4095, 4096, 51200, 51201, 65536, 65537], False),
         (24, 64, 4, [0] * 12 + [4095, 4096, 31744, 31745], False),
         pytest.param(12, 64, 4, [8192], True, id="small-weights"),
+        pytest.param(12, 64, 4, [16384], True, id="reuse-small-weights"),
         pytest.param(12, 64, 6, [60000] + [0] * 7, True, id="wide-small-weights"),
     ],
 )

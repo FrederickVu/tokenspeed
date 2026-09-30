@@ -673,9 +673,8 @@ with rows packed to the selected count's bucket. Its reduction reads only
 the splits its scan wrote. Split counts are bucketed to powers of two, so
 nearby counts share one compiled kernel. The actual split counts, page-table
 stride and softmax scale are runtime arguments. Partial attention outputs
-are combined using their log-sum-exp values. The KV-reuse path multiplies
-probabilities by 256 before
-the E4M3 cast to preserve small weights, and divides out that factor at
-normalization. The projected-value API applies the existing value projection
-to the latent output. Graph replay reads updated page tables and lengths in
-place.
+are combined using their log-sum-exp values. Both FP8 scans multiply
+probabilities by 256 before the E4M3 cast to preserve small weights, and
+divide out that factor at normalization. The projected-value API applies
+the existing value projection to the latent output. Graph replay reads
+updated page tables and lengths in place.
