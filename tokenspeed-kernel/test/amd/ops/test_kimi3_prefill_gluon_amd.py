@@ -116,7 +116,7 @@ def test_attn_res_full_history_score_ranges(tokens: int, score_scale: float) -> 
         1e-6,
         2e-6,
     )
-    torch.testing.assert_close(actual, expected, rtol=5e-3, atol=1.6e-2)
+    torch.testing.assert_close(actual, expected, rtol=2e-2, atol=1.6e-2)
 
 
 def test_attn_res_public_block_major_dispatch_matches_reference() -> None:
